@@ -1,0 +1,29 @@
+server:
+  name: client_test
+  author: airing
+  version: 1.0
+  port:
+  netTimeOutMs: 5000
+
+log:
+  level: debug
+  path: ../log/
+  maxSize: 100   #mb
+  maxBackups: 20 #file count
+  maxAge: 30     #days
+  compress: true
+
+etcd:
+  addrs: ["127.0.0.1:2380"]
+
+http_test:
+  addr: ip:127.0.0.1:8080 #etcd:server_name #url:www.xxx.com
+  timeOutMs: 5000
+  method: POST
+  contentType: application/json; charset=utf-8
+  scheme: http
+  host:
+  proxy:
+  certFilePath: ../conf/cert.pem
+  keyFilePath: ../conf/key.pem
+  rootCaFilePath:
