@@ -16,8 +16,24 @@ log:
 etcd:
   addrs: ["127.0.0.1:2380"]
 
-http_test:
-  addr: ip:127.0.0.1:8080 #etcd:server_name #url:www.xxx.com
+http_test1:
+  #addr: ip:127.0.0.1:8080
+  addr: etcd:gin_test
+  #addr: url:www.xxx.com
+  timeOutMs: 5000
+  method: POST
+  contentType: application/json; charset=utf-8
+  scheme: http
+  host:
+  proxy:
+  certFilePath: ../conf/cert.pem
+  keyFilePath: ../conf/key.pem
+  rootCaFilePath:
+
+http_test2:
+  #addr: ip:127.0.0.1:8080
+  addr: etcd:gin_test
+  #addr: url:www.xxx.com
   timeOutMs: 5000
   method: POST
   contentType: application/json; charset=utf-8

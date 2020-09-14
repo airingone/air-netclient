@@ -8,27 +8,38 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	airetcd "github.com/airingone/air-etcd"
 	"github.com/airingone/config"
+	"github.com/airingone/log"
 	"github.com/gogo/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
+)
+
+const (
+	HttpAddrTypeIp   = "ip"
+	HttpAddrTypeUrl  = "url"
+	HttpAddrTypeEtcd = "etcd"
 )
 
 //http请求client
 type HttpClient struct {
-	Cli     *http.Client      //http client，这里外层函数可自由访问，获取或设置http请求参数等
-	Config  config.ConfigHttp //配置文化
-	Path    string            //path
-	Cookie  string            //http cookie，AddCookie函数增加cookie
-	Header  map[string]string //http head
-	Req     *http.Request     //http request
-	Rsp     *http.Response    //http response
-	ReqBody io.Reader         //请求body数据
-	RspBody []byte            //回包body数据
-	Err     error
+	Cli      *http.Client      //http client，这里外层函数可自由访问，获取或设置http请求参数等
+	Config   config.ConfigHttp //配置文化
+	AddrType string            //addr type,支持ip,url,etcd
+	Addr     string            //addr
+	Path     string            //path
+	Cookie   string            //http cookie，AddCookie函数增加cookie
+	Header   map[string]string //http head
+	Req      *http.Request     //http request
+	Rsp      *http.Response    //http response
+	ReqBody  io.Reader         //请求body数据
+	RspBody  []byte            //回包body数据
+	Err      error
 }
 
 //创建http client
@@ -38,6 +49,13 @@ func newHttpClient(configHttp config.ConfigHttp, path string) (*HttpClient, erro
 		Path:   path,
 	}
 
+	//初始化地址
+	err := client.initAddr(configHttp.Addr)
+	if err != nil {
+		return nil, err
+	}
+
+	//创建http client
 	client.Cli = &http.Client{
 		Timeout: time.Duration(client.Config.TimeOutMs) * time.Millisecond,
 	}
@@ -88,6 +106,24 @@ func newHttpClient(configHttp config.ConfigHttp, path string) (*HttpClient, erro
 	return client, nil
 }
 
+//如果addr是etcd的话需要就行初始化client，这个初始化放在全局，且程序启动时一个http client初始化一次即可
+func InitEtcdClient(addr string) {
+	index := strings.IndexAny(addr, ":")
+	if index == -1 {
+		return
+	}
+	addrType := addr[0:index]
+	serverName := addr[index+1:]
+	if addrType == HttpAddrTypeEtcd {
+		_, err := airetcd.NewEtcdClient(serverName, config.GetEtcdConfig("etcd").Addrs)
+		if err != nil {
+			log.Error("InitEtcdClient: NewEtcdClient err: %+v", err)
+			return
+		}
+	}
+
+}
+
 //创建http client, 请求body数据为byte[]
 func NewBytesHttpClient(configHttp config.ConfigHttp, path string, body []byte) (*HttpClient, error) {
 	client, err := newHttpClient(configHttp, path)
@@ -118,6 +154,13 @@ func NewPbHttpClient(configHttp config.ConfigHttp, path string, body proto.Messa
 
 //创建http client, 请求body数据为json
 func NewJsonHttpClient(configHttp config.ConfigHttp, path string, body interface{}) (*HttpClient, error) {
+	if len(path) < 1 {
+		return nil, errors.New("path err")
+	}
+	if path[0] != '/' {
+		path = "/" + path
+	}
+
 	client, err := newHttpClient(configHttp, path)
 	if err != nil {
 		return nil, err
@@ -152,7 +195,11 @@ func (cli *HttpClient) AddHeader(key string, value string) {
 
 //http请求
 func (cli *HttpClient) Request(ctx context.Context) ([]byte, error) {
-	url := fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Config.Addr, cli.Path)
+	url, err := cli.getUrl()
+	if err != nil {
+		return nil, err
+	}
+	log.Info("Request: url: %s", url)
 
 	cli.Req, cli.Err = http.NewRequest(cli.Config.Method, url, cli.ReqBody)
 	if cli.Err != nil {
@@ -179,4 +226,51 @@ func (cli *HttpClient) Request(ctx context.Context) ([]byte, error) {
 	}
 
 	return cli.RspBody, nil
+}
+
+//提取配置文件addr，如果是etcd则需要启动etcd client
+func (cli *HttpClient) initAddr(addr string) error {
+	index := strings.IndexAny(addr, ":")
+	if index == -1 {
+		return errors.New("addr format error")
+	}
+	cli.AddrType = addr[0:index]
+	if cli.AddrType != HttpAddrTypeIp && cli.AddrType != HttpAddrTypeUrl &&
+		cli.AddrType != HttpAddrTypeEtcd {
+		return errors.New("addr not support")
+	}
+	cli.Addr = addr[index+1:]
+	/*
+		//如果地址是etcd则需要初始化
+		if cli.AddrType == HttpAddrTypeEtcd {
+			_, err := airetcd.NewEtcdClient(cli.Addr, config.GetEtcdConfig("etcd").Addrs)
+			if err != nil {
+				log.Error("initAddr: NewEtcdClient err: %+v", err)
+				return err
+			}
+		}
+	*/
+	return nil
+}
+
+//获取地址
+func (cli *HttpClient) getUrl() (string, error) {
+	if cli.AddrType == HttpAddrTypeIp {
+		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
+	} else if cli.AddrType == HttpAddrTypeUrl {
+		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
+	} else if cli.AddrType == HttpAddrTypeEtcd {
+		etcdCli, err := airetcd.GetEtcdClientByServerName(cli.Addr)
+		if err != nil {
+			log.Error("getUrl: GetEtcdClientByServerName err, addr: %s, err: %+v", cli.Addr, err)
+			return "", err
+		}
+		addrInfo, err := etcdCli.RandGetServerAddr()
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s://%s:%d%s", cli.Config.Scheme, addrInfo.Ip, addrInfo.Port, cli.Path), nil
+	}
+
+	return "", errors.New("addr type not support")
 }
