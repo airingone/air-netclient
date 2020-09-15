@@ -124,7 +124,7 @@ func InitEtcdClient(addr string) {
 	if addrType == HttpAddrTypeEtcd {
 		_, err := airetcd.NewEtcdClient(serverName, config.GetEtcdConfig("etcd").Addrs)
 		if err != nil {
-			log.Error("InitEtcdClient: NewEtcdClient err: %+v", err)
+			log.Error("[NETCLIENT]: InitEtcdClient NewEtcdClient err: %+v", err)
 			return
 		}
 	}
@@ -207,7 +207,7 @@ func (cli *HttpClient) Request(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Info("Request: url: %s", url)
+	log.Info("[NETCLIENT]: Request url: %s", url)
 
 	cli.Req, cli.Err = http.NewRequest(cli.Config.Method, url, cli.ReqBody)
 	if cli.Err != nil {
@@ -262,7 +262,7 @@ func (cli *HttpClient) getUrl() (string, error) {
 	} else if cli.AddrType == HttpAddrTypeEtcd {
 		etcdCli, err := airetcd.GetEtcdClientByServerName(cli.Addr)
 		if err != nil {
-			log.Error("getUrl: GetEtcdClientByServerName err, addr: %s, err: %+v", cli.Addr, err)
+			log.Error("[NETCLIENT]: getUrl GetEtcdClientByServerName err, addr: %s, err: %+v", cli.Addr, err)
 			return "", err
 		}
 		addrInfo, err := etcdCli.RandGetServerAddr()
