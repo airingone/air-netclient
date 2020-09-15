@@ -15,7 +15,8 @@ func TestHttpRequest(t *testing.T) {
 	log.InitLog(config.GetLogConfig("log")) //日志初始化
 
 	//如果addr是etcd的话需要就行初始化client，这个初始化放在全局init()，且程序启动时一个http client初始化一次即可
-	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs, config.GetHttpConfig("http_test1").Addr, config.GetHttpConfig("http_test2").Addr)
+	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs,
+		config.GetHttpConfig("http_test1").Addr, config.GetHttpConfig("http_test2").Addr)
 	time.Sleep(1 * time.Second)
 
 	var reqBody struct {
@@ -69,7 +70,8 @@ func TestHttpRequests(t *testing.T) {
 	log.InitLog(config.GetLogConfig("log")) //日志初始化
 
 	//如果addr是etcd的话需要就行初始化client，这个初始化放在全局init()，且程序启动时一个http client初始化一次即可
-	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs, config.GetHttpConfig("http_test1").Addr, config.GetHttpConfig("http_test2").Addr)
+	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs,
+		config.GetHttpConfig("http_test1").Addr, config.GetHttpConfig("http_test2").Addr)
 	time.Sleep(2 * time.Second)
 
 	var reqBody1 struct {

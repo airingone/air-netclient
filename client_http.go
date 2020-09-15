@@ -11,7 +11,7 @@ import (
 	airetcd "github.com/airingone/air-etcd"
 	"github.com/airingone/config"
 	"github.com/airingone/log"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -46,6 +46,12 @@ type HttpClient struct {
 
 //创建http client
 func newHttpClient(configHttp config.ConfigHttp, path string) (*HttpClient, error) {
+	if len(path) < 1 {
+		return nil, errors.New("path err")
+	}
+	if path[0] != '/' {
+		path = "/" + path
+	}
 	client := &HttpClient{
 		Config: configHttp,
 		Path:   path,
@@ -53,7 +59,7 @@ func newHttpClient(configHttp config.ConfigHttp, path string) (*HttpClient, erro
 	}
 
 	//初始化地址
-	err := client.initAddr(configHttp.Addr)
+	err := client.initAddr()
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +114,7 @@ func newHttpClient(configHttp config.ConfigHttp, path string) (*HttpClient, erro
 
 	return client, nil
 }
+
 /*
 //如果addr是etcd的话需要就行初始化client，这个初始化放在全局，且程序启动时一个http client初始化一次即可
 func InitEtcdClient(addr string) {
@@ -127,6 +134,46 @@ func InitEtcdClient(addr string) {
 
 }
 */
+
+//提取配置文件addr，如果是etcd则需要启动etcd client
+func (cli *HttpClient) initAddr() error {
+	addr := cli.Config.Addr
+	index := strings.IndexAny(addr, ":")
+	if index == -1 {
+		return errors.New("addr format error")
+	}
+	cli.AddrType = addr[0:index]
+	if cli.AddrType != AddrTypeIp && cli.AddrType != AddrTypeUrl &&
+		cli.AddrType != AddrTypeEtcd {
+		return errors.New("addr not support")
+	}
+	cli.Addr = addr[index+1:]
+
+	return nil
+}
+
+//获取地址
+func (cli *HttpClient) getUrl() (string, error) {
+	if cli.AddrType == AddrTypeIp {
+		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
+	} else if cli.AddrType == AddrTypeUrl {
+		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
+	} else if cli.AddrType == AddrTypeEtcd {
+		etcdCli, err := airetcd.GetEtcdClientByServerName(cli.Addr)
+		if err != nil {
+			log.Error("[NETCLIENT]: getUrl GetEtcdClientByServerName err, addr: %s, err: %+v", cli.Addr, err)
+			return "", err
+		}
+		addrInfo, err := etcdCli.RandGetServerAddr()
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s://%s:%d%s", cli.Config.Scheme, addrInfo.Ip, addrInfo.Port, cli.Path), nil
+	}
+
+	return "", errors.New("addr type not support")
+}
+
 //创建http client, 请求body数据为byte[]
 func NewBytesHttpClient(configHttp config.ConfigHttp, path string, body []byte) (*HttpClient, error) {
 	client, err := newHttpClient(configHttp, path)
@@ -157,13 +204,6 @@ func NewPbHttpClient(configHttp config.ConfigHttp, path string, body proto.Messa
 
 //创建http client, 请求body数据为json
 func NewJsonHttpClient(configHttp config.ConfigHttp, path string, body interface{}) (*HttpClient, error) {
-	if len(path) < 1 {
-		return nil, errors.New("path err")
-	}
-	if path[0] != '/' {
-		path = "/" + path
-	}
-
 	client, err := newHttpClient(configHttp, path)
 	if err != nil {
 		return nil, err
@@ -233,47 +273,9 @@ func (cli *HttpClient) Request(ctx context.Context) ([]byte, error) {
 	return cli.RspBody, nil
 }
 
-//提取配置文件addr，如果是etcd则需要启动etcd client
-func (cli *HttpClient) initAddr(addr string) error {
-	index := strings.IndexAny(addr, ":")
-	if index == -1 {
-		return errors.New("addr format error")
-	}
-	cli.AddrType = addr[0:index]
-	if cli.AddrType != AddrTypeIp && cli.AddrType != AddrTypeUrl &&
-		cli.AddrType != AddrTypeEtcd {
-		return errors.New("addr not support")
-	}
-	cli.Addr = addr[index+1:]
-
-	return nil
-}
-
-//获取地址
-func (cli *HttpClient) getUrl() (string, error) {
-	if cli.AddrType == AddrTypeIp {
-		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
-	} else if cli.AddrType == AddrTypeUrl {
-		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
-	} else if cli.AddrType == AddrTypeEtcd {
-		etcdCli, err := airetcd.GetEtcdClientByServerName(cli.Addr)
-		if err != nil {
-			log.Error("[NETCLIENT]: getUrl GetEtcdClientByServerName err, addr: %s, err: %+v", cli.Addr, err)
-			return "", err
-		}
-		addrInfo, err := etcdCli.RandGetServerAddr()
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("%s://%s:%d%s", cli.Config.Scheme, addrInfo.Ip, addrInfo.Port, cli.Path), nil
-	}
-
-	return "", errors.New("addr type not support")
-}
-
 //并发多个http请求，如果有超时情况则判断Status来判断那个请求已完成
 func HttpRequests(ctx context.Context, clis ...*HttpClient) error {
-	if len(clis) == 1{
+	if len(clis) == 1 {
 		cli := clis[0]
 		_, err := cli.Request(ctx)
 		return err
