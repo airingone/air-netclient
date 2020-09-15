@@ -22,13 +22,9 @@ import (
 )
 
 const (
-	HttpAddrTypeIp   = "ip"
-	HttpAddrTypeUrl  = "url"
-	HttpAddrTypeEtcd = "etcd"
-
 	HttpRequestStatusInit  = "init"
 	HttpRequestStatusDoing = "doing"
-	HttpRequestStatusDone  = "Done"
+	HttpRequestStatusDone  = "done"
 )
 
 //http请求client
@@ -112,7 +108,7 @@ func newHttpClient(configHttp config.ConfigHttp, path string) (*HttpClient, erro
 
 	return client, nil
 }
-
+/*
 //如果addr是etcd的话需要就行初始化client，这个初始化放在全局，且程序启动时一个http client初始化一次即可
 func InitEtcdClient(addr string) {
 	index := strings.IndexAny(addr, ":")
@@ -121,7 +117,7 @@ func InitEtcdClient(addr string) {
 	}
 	addrType := addr[0:index]
 	serverName := addr[index+1:]
-	if addrType == HttpAddrTypeEtcd {
+	if addrType == AddrTypeEtcd {
 		_, err := airetcd.NewEtcdClient(serverName, config.GetEtcdConfig("etcd").Addrs)
 		if err != nil {
 			log.Error("[NETCLIENT]: InitEtcdClient NewEtcdClient err: %+v", err)
@@ -130,7 +126,7 @@ func InitEtcdClient(addr string) {
 	}
 
 }
-
+*/
 //创建http client, 请求body数据为byte[]
 func NewBytesHttpClient(configHttp config.ConfigHttp, path string, body []byte) (*HttpClient, error) {
 	client, err := newHttpClient(configHttp, path)
@@ -244,8 +240,8 @@ func (cli *HttpClient) initAddr(addr string) error {
 		return errors.New("addr format error")
 	}
 	cli.AddrType = addr[0:index]
-	if cli.AddrType != HttpAddrTypeIp && cli.AddrType != HttpAddrTypeUrl &&
-		cli.AddrType != HttpAddrTypeEtcd {
+	if cli.AddrType != AddrTypeIp && cli.AddrType != AddrTypeUrl &&
+		cli.AddrType != AddrTypeEtcd {
 		return errors.New("addr not support")
 	}
 	cli.Addr = addr[index+1:]
@@ -255,11 +251,11 @@ func (cli *HttpClient) initAddr(addr string) error {
 
 //获取地址
 func (cli *HttpClient) getUrl() (string, error) {
-	if cli.AddrType == HttpAddrTypeIp {
+	if cli.AddrType == AddrTypeIp {
 		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
-	} else if cli.AddrType == HttpAddrTypeUrl {
+	} else if cli.AddrType == AddrTypeUrl {
 		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
-	} else if cli.AddrType == HttpAddrTypeEtcd {
+	} else if cli.AddrType == AddrTypeEtcd {
 		etcdCli, err := airetcd.GetEtcdClientByServerName(cli.Addr)
 		if err != nil {
 			log.Error("[NETCLIENT]: getUrl GetEtcdClientByServerName err, addr: %s, err: %+v", cli.Addr, err)
@@ -277,6 +273,12 @@ func (cli *HttpClient) getUrl() (string, error) {
 
 //并发多个http请求，如果有超时情况则判断Status来判断那个请求已完成
 func HttpRequests(ctx context.Context, clis ...*HttpClient) error {
+	if len(clis) == 1{
+		cli := clis[0]
+		_, err := cli.Request(ctx)
+		return err
+	}
+
 	pCtx, pCancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
 	timeOutMs := uint32(3000)
