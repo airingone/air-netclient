@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,10 @@ const (
 	HttpAddrTypeIp   = "ip"
 	HttpAddrTypeUrl  = "url"
 	HttpAddrTypeEtcd = "etcd"
+
+	HttpRequestStatusInit  = "init"
+	HttpRequestStatusDoing = "doing"
+	HttpRequestStatusDone  = "Done"
 )
 
 //http请求client
@@ -40,6 +45,7 @@ type HttpClient struct {
 	ReqBody  io.Reader         //请求body数据
 	RspBody  []byte            //回包body数据
 	Err      error
+	Status   string //"init", "doing", "done"
 }
 
 //创建http client
@@ -47,6 +53,7 @@ func newHttpClient(configHttp config.ConfigHttp, path string) (*HttpClient, erro
 	client := &HttpClient{
 		Config: configHttp,
 		Path:   path,
+		Status: HttpRequestStatusInit,
 	}
 
 	//初始化地址
@@ -195,6 +202,7 @@ func (cli *HttpClient) AddHeader(key string, value string) {
 
 //http请求
 func (cli *HttpClient) Request(ctx context.Context) ([]byte, error) {
+	cli.Status = HttpRequestStatusDoing
 	url, err := cli.getUrl()
 	if err != nil {
 		return nil, err
@@ -224,6 +232,7 @@ func (cli *HttpClient) Request(ctx context.Context) ([]byte, error) {
 	if cli.Err != nil {
 		return nil, cli.Err
 	}
+	cli.Status = HttpRequestStatusDone
 
 	return cli.RspBody, nil
 }
@@ -240,16 +249,7 @@ func (cli *HttpClient) initAddr(addr string) error {
 		return errors.New("addr not support")
 	}
 	cli.Addr = addr[index+1:]
-	/*
-		//如果地址是etcd则需要初始化
-		if cli.AddrType == HttpAddrTypeEtcd {
-			_, err := airetcd.NewEtcdClient(cli.Addr, config.GetEtcdConfig("etcd").Addrs)
-			if err != nil {
-				log.Error("initAddr: NewEtcdClient err: %+v", err)
-				return err
-			}
-		}
-	*/
+
 	return nil
 }
 
@@ -273,4 +273,39 @@ func (cli *HttpClient) getUrl() (string, error) {
 	}
 
 	return "", errors.New("addr type not support")
+}
+
+//并发多个http请求，如果有超时情况则判断Status来判断那个请求已完成
+func HttpRequests(ctx context.Context, clis ...*HttpClient) error {
+	pCtx, pCancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	timeOutMs := uint32(3000)
+	for _, cli := range clis {
+		if cli.Config.TimeOutMs > timeOutMs {
+			timeOutMs = cli.Config.TimeOutMs
+		}
+		wg.Add(1)
+		go func(w *sync.WaitGroup, c context.Context, client *HttpClient) {
+			_, _ = client.Request(c)
+			w.Done()
+		}(&wg, pCtx, cli)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		done <- struct{}{}
+	}()
+
+	var err error
+	select {
+	case <-done:
+		err = nil
+		break
+	case <-time.After(time.Duration(timeOutMs) * time.Millisecond):
+		err = errors.New("HttpRequests timeout")
+	}
+	pCancel()
+
+	return err
 }
