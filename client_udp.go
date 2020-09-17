@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	MaxRecvbuf = 1024 * 1024 * 4
+	MaxRecvbuf = 1024 * 128 // 128k
 
 	UdpRequestStatusInit  = "init"
 	UdpRequestStatusStart = "start"
