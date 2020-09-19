@@ -2,7 +2,9 @@ package air_netclient
 
 import (
 	"context"
+	"encoding/json"
 	air_etcd "github.com/airingone/air-etcd"
+	air_netserver "github.com/airingone/air-netserver"
 	"github.com/airingone/config"
 	"github.com/airingone/log"
 	"testing"
@@ -117,4 +119,89 @@ func TestHttpRequests(t *testing.T) {
 	}
 
 	time.Sleep(1 * time.Second)
+}
+
+type GetUserInfoReq struct {
+	RequestId string `json:"request_id"`
+	UserId    string `json:"user_id"`
+}
+
+type GetUserInfoRsp struct {
+	RequestId string `json:"request_id"`
+	ErrCode   int32  `json:"err_code"`
+	ErrMsg    string `json:"err_msg"`
+	UserId    string `json:"user_id"`
+	UserName  string `json:"user_name"`
+}
+
+//udp并发请求测试
+func TestUdpRequests(t *testing.T) {
+	config.InitConfig()                     //配置文件初始化
+	log.InitLog(config.GetLogConfig("log")) //日志初始化
+
+	clientConfig := config.GetNetConfig("udp_test1")
+	//如果addr是etcd的话需要就行初始化client，这个初始化放在全局init()，且程序启动时一个http client初始化一次即可
+	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs,
+		clientConfig.Addr)
+	time.Sleep(2 * time.Second)
+
+	//请求包
+	var req GetUserInfoReq
+	req.UserId = "user01"
+	req.RequestId = "123456"
+	dataReq, _ := json.Marshal(req)
+	dataBytes, err := air_netserver.CommonProtocolPacket([]byte(clientConfig.ServerName),
+		[]byte("getuserinfo"), dataReq)
+	if err != nil {
+		log.Error("packet data err, %+v", err)
+		return
+	}
+	cli, err := NewBytesUdpClient(clientConfig, dataBytes)
+	if err != nil {
+		log.Error("NewBytesUdpClient err, %+v", err)
+		return
+	}
+
+	var req2 GetUserInfoReq
+	req2.UserId = "user02"
+	req2.RequestId = "12345678"
+	dataReq2, _ := json.Marshal(req2)
+	dataBytes2, err := air_netserver.CommonProtocolPacket([]byte(clientConfig.ServerName),
+		[]byte("getuserinfo"), dataReq2)
+	if err != nil {
+		log.Error("packet data err, %+v", err)
+		return
+	}
+	cli2, err := NewBytesUdpClient(clientConfig, dataBytes2)
+	if err != nil {
+		log.Error("NewBytesUdpClient err, %+v", err)
+		return
+	}
+
+	//发起请求
+	err = UdpRequests(context.Background(), cli, cli2)
+	if cli.Err != nil {
+		log.Error("request err, %+v", err)
+	} else {
+		//解析回报
+		serverName, cmd, dataRsp, _ := air_netserver.CommonProtocolUnPacket(cli.RspData)
+		log.Info("rsp: serverName=%s, cmd=%s, data: %s", serverName, cmd, string(dataRsp))
+		var rsp GetUserInfoRsp
+		err = json.Unmarshal(dataRsp, &rsp)
+		if err != nil {
+			log.Error("Unmarshal err, %+v", err)
+			return
+		}
+		log.Info("succ: rsp=%+v", rsp)
+
+		serverName2, cmd2, dataRsp2, _ := air_netserver.CommonProtocolUnPacket(cli2.RspData)
+		log.Info("rsp2: serverName=%s, cmd=%s, data: %s", serverName2, cmd2, string(dataRsp2))
+		var rsp2 GetUserInfoRsp
+		err = json.Unmarshal(dataRsp2, &rsp2)
+		if err != nil {
+			log.Error("Unmarshal err, %+v", err)
+			return
+		}
+		log.Info("succ: rsp2=%+v", rsp2)
+	}
 }
