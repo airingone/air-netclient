@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	MaxRecvbuf = 1024 * 128 // 128k
+	UdpMaxRecvbuf = 1024 * 128 // 128k
 
 	UdpRequestStatusInit  = "init"
 	UdpRequestStatusStart = "start"
@@ -32,7 +32,7 @@ type UdpClient struct {
 	ReqData  []byte
 	RspData  []byte
 	Err      error
-	Status   string //"init", "doing", "done"
+	Status   string //"init", "start", "send" "done"
 }
 
 func newUdpClient(config config.ConfigNet) (*UdpClient, error) {
@@ -143,7 +143,7 @@ func (cli *UdpClient) Request(ctx context.Context) ([]byte, error) {
 	conn, err := net.DialTimeout("udp", addr, time.Duration(3)*time.Second)
 	defer conn.Close()
 
-	timeout := time.Duration((cli.Config.TimeOutMs+1)/2) * time.Millisecond
+	timeout := time.Duration(cli.Config.TimeOutMs) * time.Millisecond
 	_ = conn.SetWriteDeadline(time.Now().Add(timeout))
 	sendNum, err := conn.Write(cli.ReqData)
 	if err != nil {
@@ -157,7 +157,7 @@ func (cli *UdpClient) Request(ctx context.Context) ([]byte, error) {
 	cli.Status = UdpRequestStatusSend
 
 	_ = conn.SetReadDeadline(time.Now().Add(timeout))
-	var recvBuf [MaxRecvbuf]byte
+	var recvBuf [UdpMaxRecvbuf]byte
 	recvNum, err := conn.Read(recvBuf[0:])
 	if err != nil {
 		return nil, err
@@ -184,6 +184,12 @@ func UdpRequests(ctx context.Context, clis ...*UdpClient) error {
 		}
 		wg.Add(1)
 		go func(w *sync.WaitGroup, c context.Context, client *UdpClient) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.PanicTrack()
+				}
+			}()
+
 			_, _ = client.Request(c)
 			w.Done()
 		}(&wg, pCtx, cli)
