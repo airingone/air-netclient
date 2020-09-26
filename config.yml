@@ -49,3 +49,9 @@ udp_test1:
   #addr: ip:127.0.0.1:8045
   addr: etcd:netserver_test
   timeOutMs: 5000
+
+tcp_test1:
+  serverName: netserver_test
+  #addr: ip:127.0.0.1:8045
+  addr: etcd:netserver_test
+  timeOutMs: 5000
