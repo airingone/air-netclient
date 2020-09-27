@@ -17,8 +17,9 @@ func TestHttpRequest(t *testing.T) {
 	log.InitLog(config.GetLogConfig("log")) //日志初始化
 
 	//如果addr是etcd的话需要就行初始化client，这个初始化放在全局init()，且程序启动时一个http client初始化一次即可
-	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs,
+	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd"),
 		config.GetHttpConfig("http_test1").Addr, config.GetHttpConfig("http_test2").Addr)
+	defer air_etcd.CloseEtcdClient()
 	time.Sleep(1 * time.Second)
 
 	var reqBody struct {
@@ -72,8 +73,9 @@ func TestHttpRequests(t *testing.T) {
 	log.InitLog(config.GetLogConfig("log")) //日志初始化
 
 	//如果addr是etcd的话需要就行初始化client，这个初始化放在全局init()，且程序启动时一个http client初始化一次即可
-	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs,
+	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd"),
 		config.GetHttpConfig("http_test1").Addr, config.GetHttpConfig("http_test2").Addr)
+	defer air_etcd.CloseEtcdClient()
 	time.Sleep(2 * time.Second)
 
 	var reqBody1 struct {
@@ -141,8 +143,9 @@ func TestUdpRequests(t *testing.T) {
 
 	clientConfig := config.GetNetConfig("udp_test1")
 	//如果addr是etcd的话需要就行初始化client，这个初始化放在全局init()，且程序启动时一个http client初始化一次即可
-	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs,
+	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd"),
 		clientConfig.Addr)
+	defer air_etcd.CloseEtcdClient()
 	time.Sleep(2 * time.Second)
 
 	//请求包
@@ -213,8 +216,9 @@ func TestTcpRequests(t *testing.T) {
 
 	clientConfig := config.GetNetConfig("tcp_test1")
 	//如果addr是etcd的话需要就行初始化client，这个初始化放在全局init()，且程序启动时一个http client初始化一次即可
-	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs,
+	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd"),
 		clientConfig.Addr)
+	defer air_etcd.CloseEtcdClient()
 	time.Sleep(2 * time.Second)
 
 	//请求包
@@ -295,8 +299,9 @@ func TestTcpKeepAlive(t *testing.T) {
 
 	clientConfig := config.GetNetConfig("tcp_test1")
 	//如果addr是etcd的话需要就行初始化client，这个初始化放在全局init()，且程序启动时一个http client初始化一次即可
-	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd").Addrs,
+	air_etcd.InitEtcdClient(config.GetEtcdConfig("etcd"),
 		clientConfig.Addr)
+	defer air_etcd.CloseEtcdClient()
 	time.Sleep(2 * time.Second)
 
 	var req GetUserInfoReq

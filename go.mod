@@ -13,4 +13,6 @@ require (
 
 replace github.com/airingone/air-netserver v0.0.0-20200917150859-aade18368c78 => /Users/air/go/src/airingone/air-netserver
 
+replace github.com/airingone/air-etcd v1.0.4 => /Users/air/go/src/airingone/air-etcd
+
 replace github.com/airingone/config v1.0.8 => /Users/air/go/src/airingone/config
