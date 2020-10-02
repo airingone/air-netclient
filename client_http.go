@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	HttpRequestStatusInit  = "init"
-	HttpRequestStatusDoing = "doing"
-	HttpRequestStatusDone  = "done"
+	HttpRequestStatusInit  = "init"  //请求初始化
+	HttpRequestStatusDoing = "doing" //请求进程中
+	HttpRequestStatusDone  = "done"  //请求已完成
 )
 
 //http请求client
@@ -40,11 +40,13 @@ type HttpClient struct {
 	Rsp      *http.Response    //http response
 	ReqBody  io.Reader         //请求body数据
 	RspBody  []byte            //回包body数据
-	Err      error
-	Status   string //"init", "doing", "done"
+	Err      error             //错误信息
+	Status   string            //请求当前状态："init", "doing", "done"
 }
 
 //创建http client
+//configHttp: client配置
+//path: http path
 func newHttpClient(configHttp config.ConfigHttp, path string) (*HttpClient, error) {
 	if len(path) < 1 {
 		return nil, errors.New("path err")
@@ -152,7 +154,7 @@ func (cli *HttpClient) initAddr() error {
 	return nil
 }
 
-//获取地址
+//获取地址,支持ip，url，etcd
 func (cli *HttpClient) getUrl() (string, error) {
 	if cli.AddrType == AddrTypeIp {
 		return fmt.Sprintf("%s://%s%s", cli.Config.Scheme, cli.Addr, cli.Path), nil
@@ -175,6 +177,9 @@ func (cli *HttpClient) getUrl() (string, error) {
 }
 
 //创建http client, 请求body数据为byte[]
+//configHttp: client配置
+//path: http path
+//body: 请求包数据
 func NewBytesHttpClient(configHttp config.ConfigHttp, path string, body []byte) (*HttpClient, error) {
 	client, err := newHttpClient(configHttp, path)
 	if err != nil {
@@ -186,6 +191,9 @@ func NewBytesHttpClient(configHttp config.ConfigHttp, path string, body []byte) 
 }
 
 //创建http client, 请求body数据为pb
+//configHttp: client配置
+//path: http path
+//body: 请求包数据
 func NewPbHttpClient(configHttp config.ConfigHttp, path string, body proto.Message) (*HttpClient, error) {
 	client, err := newHttpClient(configHttp, path)
 	if err != nil {
@@ -203,6 +211,9 @@ func NewPbHttpClient(configHttp config.ConfigHttp, path string, body proto.Messa
 }
 
 //创建http client, 请求body数据为json
+//configHttp: client配置
+//path: http path
+//body: 请求包数据
 func NewJsonHttpClient(configHttp config.ConfigHttp, path string, body interface{}) (*HttpClient, error) {
 	client, err := newHttpClient(configHttp, path)
 	if err != nil {
@@ -219,6 +230,8 @@ func NewJsonHttpClient(configHttp config.ConfigHttp, path string, body interface
 }
 
 //增加cookie
+//key: cookie key
+//value: cookie value
 func (cli *HttpClient) AddCookie(key string, value string) {
 	if len(cli.Cookie) == 0 {
 		cli.Cookie = fmt.Sprintf("%s=%s", key, value)
@@ -228,6 +241,8 @@ func (cli *HttpClient) AddCookie(key string, value string) {
 }
 
 //增加header
+//key: header key
+//value: header value
 func (cli *HttpClient) AddHeader(key string, value string) {
 	if cli.Header == nil {
 		cli.Header = make(map[string]string)
@@ -237,6 +252,7 @@ func (cli *HttpClient) AddHeader(key string, value string) {
 }
 
 //http请求
+//ctx: context
 func (cli *HttpClient) Request(ctx context.Context) ([]byte, error) {
 	cli.Status = HttpRequestStatusDoing
 	url, err := cli.getUrl()
@@ -274,6 +290,8 @@ func (cli *HttpClient) Request(ctx context.Context) ([]byte, error) {
 }
 
 //并发多个http请求，如果有超时情况则判断Status来判断那个请求已完成
+//ctx: context
+//clis: http client
 func HttpRequests(ctx context.Context, clis ...*HttpClient) error {
 	if len(clis) == 1 {
 		cli := clis[0]

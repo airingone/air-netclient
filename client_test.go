@@ -333,7 +333,7 @@ func TestTcpKeepAlive(t *testing.T) {
 		}
 	}()
 
-	//reqd
+	//read
 	go func() {
 		for {
 			rspBuf, err := cli.Read(context.Background(),

@@ -16,25 +16,27 @@ import (
 )
 
 const (
-	UdpMaxRecvbuf = 1024 * 128 // 128k
+	UdpMaxRecvbuf = 1024 * 128 //接受最大buf大小，128k
 
-	UdpRequestStatusInit  = "init"
-	UdpRequestStatusStart = "start"
-	UdpRequestStatusSend  = "send"
-	UdpRequestStatusDone  = "done"
+	UdpRequestStatusInit  = "init"  //请求初始化
+	UdpRequestStatusStart = "start" //请求进程中
+	UdpRequestStatusSend  = "send"  //请求已发送
+	UdpRequestStatusDone  = "done"  //请求已完成
 )
 
 //udp client
 type UdpClient struct {
-	Config   config.ConfigNet
+	Config   config.ConfigNet //网络配置
 	AddrType string //addr type,支持ip,etcd
 	Addr     string //addr
-	ReqData  []byte
-	RspData  []byte
-	Err      error
-	Status   string //"init", "start", "send" "done"
+	ReqData  []byte //请求包
+	RspData  []byte //返回包
+	Err      error  //错误信息
+	Status   string //请求状态，"init", "start", "send" "done"
 }
 
+//创建udp client
+//config: 网络client配置
 func newUdpClient(config config.ConfigNet) (*UdpClient, error) {
 	cli := &UdpClient{
 		Config: config,
@@ -88,6 +90,8 @@ func (cli *UdpClient) getAddr() (string, error) {
 }
 
 //udp client, 请求body数据为byte[]
+//config: 网络client配置
+//body: 请求包数据
 func NewBytesUdpClient(config config.ConfigNet, body []byte) (*UdpClient, error) {
 	client, err := newUdpClient(config)
 	if err != nil {
@@ -99,6 +103,8 @@ func NewBytesUdpClient(config config.ConfigNet, body []byte) (*UdpClient, error)
 }
 
 //udp client, 请求body数据为pb
+//config: 网络client配置
+//body: 请求包数据
 func NewPbUdpClient(config config.ConfigNet, body proto.Message) (*UdpClient, error) {
 	client, err := newUdpClient(config)
 	if err != nil {
@@ -114,6 +120,8 @@ func NewPbUdpClient(config config.ConfigNet, body proto.Message) (*UdpClient, er
 }
 
 //udp client, 请求body数据为json
+//config: 网络client配置
+//body: 请求包数据
 func NewJsonUdpClient(config config.ConfigNet, body interface{}) (*UdpClient, error) {
 	client, err := newUdpClient(config)
 	if err != nil {
@@ -130,6 +138,7 @@ func NewJsonUdpClient(config config.ConfigNet, body interface{}) (*UdpClient, er
 }
 
 //发送请求
+//ctx: context
 func (cli *UdpClient) Request(ctx context.Context) ([]byte, error) {
 	cli.Status = UdpRequestStatusStart
 	//获取地址
@@ -168,6 +177,9 @@ func (cli *UdpClient) Request(ctx context.Context) ([]byte, error) {
 	return cli.RspData, nil
 }
 
+//并发发起请求
+//ctx: context
+//clis: udp client
 func UdpRequests(ctx context.Context, clis ...*UdpClient) error {
 	if len(clis) == 1 {
 		cli := clis[0]

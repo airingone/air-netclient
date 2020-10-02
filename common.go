@@ -1,7 +1,7 @@
 package air_netclient
 
 const (
-	AddrTypeIp   = "ip"
-	AddrTypeUrl  = "url"
-	AddrTypeEtcd = "etcd"
+	AddrTypeIp   = "ip"   //ip类型地址
+	AddrTypeUrl  = "url"  //url类型地址
+	AddrTypeEtcd = "etcd" //etcd类型地址
 )
